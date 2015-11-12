@@ -93,6 +93,18 @@ mat Top::precondition_map_R(const mat& L, const mat& R, const Relation& r, const
     return (R - V * (exp_mu_plus_1.asDiagonal() * VtR)) * inv_T;
 }
 
+val inner_dot(const mat& A, const mat& B) {
+    /*
+     *val s = 0;
+     *#pragma omp parallel for reduction(+:s)
+     *for(int i = 0; i < A.rows(); i++) {
+     *    s += A.row(i).dot(B.row(i));
+     *}
+     *return s;
+     */
+    return A.cwiseProduct(B).sum();
+}
+
 mat Top::matrix_pcg_L(const Relation& r, const mat& L0, const mat& R, const mat& B) {
     /*precompute T for the hessian/precondition map*/
     mat VtR = V.transpose()*R;
@@ -108,9 +120,9 @@ mat Top::matrix_pcg_L(const Relation& r, const mat& L0, const mat& R, const mat&
     mat AP;
     val alpha_num, alpha_den, alpha, beta, conv;
     for (unsigned i = 0; i < opt.pcgIter; i++) {
-        alpha_num = E.cwiseProduct(Z).sum();
+        alpha_num = inner_dot(E, Z);
         AP = hessian_map_L(P, R, r, T);
-        alpha_den = P.cwiseProduct(AP).sum(); 
+        alpha_den = inner_dot(P, AP);
         alpha = alpha_num/alpha_den;
         L += alpha*P;
         E -= alpha*AP;
@@ -119,7 +131,7 @@ mat Top::matrix_pcg_L(const Relation& r, const mat& L0, const mat& R, const mat&
         if (conv < opt.pcgTol)
             break;
         Z = precondition_map_L(E, R, r, inv_T);
-        beta = E.cwiseProduct(Z).sum()/alpha_num;
+        beta = inner_dot(E, Z)/alpha_num;
         P = Z + beta*P;
     }
     return L;
@@ -140,9 +152,9 @@ mat Top::matrix_pcg_R(const Relation& r, const mat& L, const mat& R0, const mat&
     mat AP;
     val alpha_num, alpha_den, alpha, beta, conv;
     for (unsigned i = 0; i < opt.pcgIter; i++) {
-        alpha_num = E.cwiseProduct(Z).sum();
+        alpha_num = inner_dot(E, Z);
         AP = hessian_map_R(L, P, r, T);
-        alpha_den = P.cwiseProduct(AP).sum(); 
+        alpha_den = inner_dot(P, AP);
         alpha = alpha_num/alpha_den;
         R += alpha*P;
         E -= alpha*AP;
@@ -151,21 +163,18 @@ mat Top::matrix_pcg_R(const Relation& r, const mat& L, const mat& R0, const mat&
         if (conv < opt.pcgTol)
             break;
         Z = precondition_map_R(L, E, r, inv_T);
-        beta = E.cwiseProduct(Z).sum()/alpha_num;
+        beta = inner_dot(E, Z)/alpha_num;
         P = Z + beta*P;
     }
     return R;
 }
 
 Result Top::validate(const Relation& r) {
-    unsigned i, j;
     val se = 0;
     val ae = 0;
     val delta, score;
     for (auto it = r.edges.cbegin(); it != r.edges.cend(); ++it) {
-        i = it->row();
-        j = it->col();
-        score = L.row(i).dot(R.row(j));
+        score = L.row(it->row()).dot(R.row(it->col()));
         delta = it->value() - score;
         se += delta*delta;
         ae += fabs(delta);
@@ -211,11 +220,6 @@ void Top::initialize(const Entity& e1, const Entity& e2, const Relation& trn) {
     RedSVD::RedSVD<sp_mat> svd_g(normalized_graph(e1.A), this->opt.k_g);
     RedSVD::RedSVD<sp_mat> svd_h(normalized_graph(e2.A), this->opt.k_h);
     fprintf(stderr, "Done.\n");
-
-    //std::cerr << "UU' \n" << (this->U.transpose()*this->U) << std::endl;
-    //std::cerr << "VV' \n" << (this->V.transpose()*this->V) << std::endl;
-    //std::cerr << "eigenvalues G: \n" << svd_g.singularValues() << std::endl;
-    //std::cerr << "eigenvalues H: \n" << svd_h.singularValues() << std::endl;
 
     this->U = svd_g.matrixU(); 
     this->V = svd_h.matrixU();
@@ -271,7 +275,7 @@ bool Top::train(const Entity& e1, const Entity& e2, const Relation& trn, const R
                 delta_L = matrix_pcg_L(trn, L, R, nabla_L);
                 /*backtracking for the dumped Newton step*/
                 for (t = 1; objective(L - t*delta_L, R, trn) >
-                        obj_old - opt.alpha*t*nabla_L.cwiseProduct(delta_L).sum(); t *= opt.beta); 
+                        obj_old - opt.alpha*t*inner_dot(nabla_L, delta_L); t *= opt.beta); 
                 L -= t*delta_L;
             }
             /*Update R*/ {
@@ -281,7 +285,7 @@ bool Top::train(const Entity& e1, const Entity& e2, const Relation& trn, const R
                 delta_R = matrix_pcg_R(trn, L, R, nabla_R);
                 /*backtracking for the dumped Newton step*/
                 for (t = 1; objective(L, R - t*delta_R, trn) >
-                        obj_old - opt.alpha*t*nabla_R.cwiseProduct(delta_R).sum(); t *= opt.beta); 
+                        obj_old - opt.alpha*t*inner_dot(nabla_R, delta_R); t *= opt.beta); 
                 R -= t*delta_R;
             }
             obj_new = objective(L, R, trn);
