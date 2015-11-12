@@ -14,12 +14,16 @@ vertexIn_G vertexIn_H linkStrength
 ```
 The vertex index can be any string. There's no need to convert the indices to consecutive integers.
 
-E.g.,
-G could be the social network among users; H could be a similarity graph of movies induced from their genres. In this case, cross-graph links may correspond to user-movie ratings.
+For movie recommendation,
+G could be the social network among users,
+H could be a similarity graph of movies induced from their genres.
+In this case, cross-graph links correspond to user-movie ratings.
   
 By default, the program reads configurations specified in `*.ini`. The configuration file should be self-explanatory. Here is a sample pipeline for execution and evaluation:
 ```
-make -j8 && ./train config/cmu.ini && python eval.py data/cmu/link.test.txt /tmp/predict.txt
+make -j8 \
+&& ./train config/cmu.ini \
+&& python eval.py data/cmu/link.test.txt /tmp/predict.txt
 ```
 
 ## Author
