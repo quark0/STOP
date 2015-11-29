@@ -5,10 +5,17 @@
 using namespace std;
 
 #include <assert.h>
+#include <iomanip>
 #include "Top.hh"
 #include "OptionParser.h"
 
 using namespace optparse;
+
+#define COLOR_1 "\033[35m"
+#define COLOR_2 "\033[36m"
+#define RESET "\033[0m"
+#define INFO_1(X, Y) cerr << X << COLOR_1 << Y << RESET << endl;
+#define INFO_2(X, Y) cerr << left << setw(18) << X << COLOR_2 << Y << RESET << endl;
 
 bool myComparator(const tuple<int, val>& l, const tuple<int, val>& r) { return get<1>(l) > get<1>(r); }
 
@@ -51,7 +58,7 @@ int main(int argc, char *argv[]) {
     parser.add_option("--PCGTolerance") .type("double") .set_default(1e-5) .help("PCG tolerance (%default)");
     parser.add_option("--PCGMaxIter") .type("int") .set_default(50) .help("max PCG iterations (%default)");
     parser.add_option("--eta0") .type("double") .set_default(1e-3) .help("PMF learning rate (%default)");
-    parser.add_option("--inferDump") .metavar("FILE") .help("if specified, dump the highest scored [inferTop] entities in H for each entity in G");
+    parser.add_option("--inferDump") .metavar("FILE") .help("when specified, dump the highest scored [inferTop] entities in H for each entity in G");
     parser.add_option("--inferTop") .type("int") .set_default(10) .help("see above (%default)");
 
     Values& options = parser.parse_args(argc, argv);
@@ -82,42 +89,43 @@ int main(int argc, char *argv[]) {
     opt.eta0 = (double) options.get("eta0");
 
     /*load graph G on the left*/
-    fprintf(stderr, "Loading G from \"%s\"\n", entityGraphG);
+    INFO_1("G <-- ", entityGraphG) 
     Entity g(entityGraphG);
-    fprintf(stderr, "Nodes in Entity 1:\t%d\n", g.n);
 
     /*load graph H on the right*/
-    fprintf(stderr, "Loading H from \"%s\"\n", entityGraphH);
+    INFO_1("H <-- ", entityGraphH) 
     Entity h(entityGraphH);
-    fprintf(stderr, "Nodes in Entity 2:\t%d\n", h.n);
 
     /*load observed cross-graph links for training*/
-    fprintf(stderr, "Loading training links from \"%s\"\n", trainingLinks);
+    INFO_1("T <-- ", trainingLinks) 
     Relation trn(trainingLinks, g, h);
-    fprintf(stderr, "Edges for Training:\t%zd\n", trn.edges.size());
 
     /*load hold-out cross-graph links for testing*/
-    fprintf(stderr, "Loading test links from \"%s\"\n", validationLinks);
+    INFO_1("V <-- ", validationLinks)
     Relation tes(validationLinks, g, h);
-    fprintf(stderr, "Edges for Testing:\t%zd\n", tes.edges.size());
+
+    INFO_2("Entities in G: ", g.n)
+    INFO_2("Entities in H: ", h.n)
+    INFO_2("Training edges: ", trn.edges.size())
+    INFO_2("Validation edges: ", trn.edges.size())
+    INFO_2("CPU threads: ", Eigen::nbThreads())
 
     /*initialize the algorithm*/
     Top top(opt);
 
     /*training*/
-    fprintf(stderr, "Training with %d threads ...\n", Eigen::nbThreads());
     assert(top.train(g, h, trn, tes));
 
     /*dump the predictions to file*/
-    fprintf(stderr, "Writing predictions to \"%s\"\n", predictions);
+    INFO_1("Predictions --> ", predictions)
     Result result = top.predict(g, h, tes, predictions);
-    fprintf(stderr, "MAE  = %f\n", result.mae);
-    fprintf(stderr, "RMSE = %f\n", result.rmse);
+    INFO_2("MAE", result.mae)
+    INFO_2("RMSE", result.rmse)
 
     const char* inferDump = (const char*) options.get("inferDump");
 
     if ( strlen(inferDump) ) {
-        fprintf(stderr, "Writing top-ranked induced links to \"%s\"\n", inferDump);
+        INFO_1("Induced Links --> ", inferDump)
         unsigned inferTop = (unsigned) options.get("inferTop");
 
         mat L = top.get_L();
@@ -143,9 +151,7 @@ int main(int argc, char *argv[]) {
                         topPairs[k++] = tuple<int, val> (j, f(j));
                     if ( k == inferTop ) break;
                 }
-
                 sort(topPairs.begin(), topPairs.begin()+k, myComparator); 
-
                 gId = g.id_of.at(i);
                 for (unsigned j = 0; j < k; j++)
                     ofs << gId << " " << h.id_of.at(get<0>(topPairs[j])) << " " << get<1>(topPairs[j]) << endl;
