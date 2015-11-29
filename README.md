@@ -6,24 +6,25 @@ Options:
   -H FILE, --entityGraphH=FILE      entity graph H on the right
   -T FILE, --trainingLinks=FILE     cross-graph links for training
   -V FILE, --validationLinks=FILE   cross-graph links for validation
-  -O FILE, --predictions=FILE       predictions
+  -O FILE, --predictions=FILE       where to store predictions
 
-  -k INT, --dimensionF=INT          inner dimension of F (50)
-  -p INT, --dimensionG=INT          inner dimension of G (100)
-  -q INT, --dimensionH=INT          inner dimension of H (100)
-  -C DOUBLE, --C=DOUBLE             C*loss_fun(F) + regularization(F) (1)
-  -e DOUBLE, --convergence=DOUBLE   desired convergence rate (0.001)
+  -k INT, --dimF=INT                inner dimension of F (50)
+  -p INT, --dimG=INT                inner dimension of G (100)
+  -q INT, --dimH=INT                inner dimension of H (100)
+  -C DOUBLE, --C=DOUBLE             C*loss_func(F) + regularization(F) (1)
+
   --algorithm=[top|pmf]             algorithm (top)
+  --convergence=DOUBLE              desired convergence rate (0.001)
   --decay=DOUBLE                    decay factor for infinite ramdom walk (1)
   --alpha=DOUBLE                    backtracking parameter: \alpha (0.5)
   --beta=DOUBLE                     backtracking parameter: \beta (0.5)
   --PCGTolerance=DOUBLE             PCG tolerance (1e-05)
   --PCGMaxIter=INT                  max PCG iterations (50)
   --eta0=DOUBLE                     PMF learning rate (0.001)
-  --inferDump=FILE                  when specified, dump the highest scored
+  --maxThreads=INT                  max number of training threads (4)
+  --inferDump=FILE                  when specified, dump the induced top
                                     [inferTop] entities in H for each entity in G
   --inferTop=INT                    see above (10)
-
 ```
 
 ## Input Format
