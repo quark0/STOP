@@ -1,30 +1,62 @@
 # STOP
-Scalable Transductive Learning over the Product Graph
+Transductive Learning over Product Graphs
 
 ## Usage
-The program takes 4 files as its input:
+```
+  -G FILE, --entityGraphG=FILE      entity graph G on the left
+  -H FILE, --entityGraphH=FILE      entity graph H on the right
+  -T FILE, --trainingLinks=FILE     cross-graph links for training
+  -V FILE, --validationLinks=FILE   cross-graph links for validation
+  -O FILE, --predictions=FILE       predictions
 
-A sparse graph G on the left and a sparse graph H on the right in the following format
+  -k INT, --dimensionF=INT          inner dimension of F (50)
+  -p INT, --dimensionG=INT          inner dimension of G (100)
+  -q INT, --dimensionH=INT          inner dimension of H (100)
+  -C DOUBLE, --C=DOUBLE             C*loss_fun(F) + regularization(F) (1)
+  -e DOUBLE, --convergence=DOUBLE   desired convergence rate (0.001)
+  --algorithm=[top|pmf]             algorithm (top)
+  --decay=DOUBLE                    decay factor for infinite ramdom walk (1)
+  --alpha=DOUBLE                    backtracking parameter: \alpha (0.5)
+  --beta=DOUBLE                     backtracking parameter: \beta (0.5)
+  --PCGTolerance=DOUBLE             PCG tolerance (0.001)
+  --PCGMaxIter=INT                  max PCG iterations (50)
+  --eta0=DOUBLE                     PMF learning rate (0.001)
 ```
-vertexIn_G anotherVertexIn_G edgeStrength
+## Input Format
+The four input files are in the following 3-column format
 ```
-Cross-graph links for training and testing
+STRING STRING DOUBLE
+source target linkStrength(source, target)
 ```
-vertexIn_G vertexIn_H linkStrength
-```
-The vertex index can be any string. There's no need to convert the indices to consecutive integers.
 
-For movie recommendation,
-G could be the social network among users,
-H could be a similarity graph of movies induced from their genres.
-In this case, cross-graph links correspond to user-movie ratings.
+## Example: Semi-supervised Word Translation
+
+The dataset for this task is located at `data/bilingual`,
+where `cn.graph.txt` is a 50-NN graph of Chinese word-word similarities induced from an external corpus in an unsupervised manner (via word embeddings). Similarly `en.graph.txt` is the graph for English words.
+
+With information provided in the two monolingual graphs,
+our goal here is to correctly rank the cross-language word translations in `validationLinks.txt` based on a set of seed translations in `trainingLinks.txt` obtained from a Chinese-English dictionary.
   
-By default, the program reads configurations specified in `*.ini`. The configuration file should be self-explanatory. Here is a sample pipeline for execution and evaluation:
+Compling: `make -j8`
+
+Training and predicting
 ```
-make -j8 \
-&& ./train config/cmu.ini \
-&& python eval.py data/cmu/link.test.txt /tmp/predict.txt
+./top \
+-G data/bilingual/cn.graph.txt \
+-H data/bilingual/en.graph.txt \
+-T data/bilingual/dict.trn.txt \
+-V data/bilingual/dict.val.txt \
+-O /tmp/predictions.txt \
+-k 100 -p 500 -q 500 -C 5 --decay=2
 ```
+
+Evaluating on the validation set with Mean Average Prevision (MAP) @1-10
+```
+python eval.py data/bilingual/ /tmp/predictions.txt
+```
+
+## Sample Output
+TBA
 
 ## Author
 Hanxiao Liu, Carnegie Mellon University
