@@ -17,9 +17,13 @@ Options:
   --decay=DOUBLE                    decay factor for infinite ramdom walk (1)
   --alpha=DOUBLE                    backtracking parameter: \alpha (0.5)
   --beta=DOUBLE                     backtracking parameter: \beta (0.5)
-  --PCGTolerance=DOUBLE             PCG tolerance (0.001)
+  --PCGTolerance=DOUBLE             PCG tolerance (1e-05)
   --PCGMaxIter=INT                  max PCG iterations (50)
   --eta0=DOUBLE                     PMF learning rate (0.001)
+  --inferDump=FILE                  when specified, dump the highest scored
+                                    [inferTop] entities in H for each entity in G
+  --inferTop=INT                    see above (10)
+
 ```
 
 ## Input Format
@@ -28,7 +32,7 @@ The four input files are in the following 3-column format
 STRING STRING DOUBLE
 source target linkStrength(source, target)
 ```
-There is no need to convert the words into integer-valued indices.
+Note there is no need to convert the words into integer-valued indices.
 
 ## Example: Semi-supervised Word Translation
 
