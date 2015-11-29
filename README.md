@@ -1,5 +1,5 @@
-# STOP
-Transductive Learning over Product Graphs
+# TOP++
+Large-scale Transductive Learning over Product Graphs
 ```
 Options:
   -G FILE, --entityGraphG=FILE      entity graph G on the left
@@ -42,7 +42,7 @@ where `cn.graph.txt` is a 50-NN similarity graph of Chinese word induced from an
 With info provided in the two monolingual graphs,
 our goal is to correctly rank the cross-language word translations in `validationLinks.txt` based on a set of seed translations in `trainingLinks.txt` obtained from a Chinese-English dictionary.
   
-Compling: `make -j8`
+The code can be compiled with `make -j8`
 
 Training and predicting
 ```
@@ -116,4 +116,4 @@ Sample output of system-induced translations with `--inferDump=FILE` and `inferT
 ```
 
 ## Author
-Hanxiao Liu, Carnegie Mellon University
+Copyright (c) 2015 Hanxiao Liu, Carnegie Mellon University
