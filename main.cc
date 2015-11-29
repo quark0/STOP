@@ -10,6 +10,8 @@ using namespace std;
 
 using namespace optparse;
 
+bool myComparator(const tuple<int, val>& l, const tuple<int, val>& r) { return get<1>(l) > get<1>(r); }
+
 int main(int argc, char *argv[]) {
 
     OptionParser parser = OptionParser()
@@ -49,6 +51,8 @@ int main(int argc, char *argv[]) {
     parser.add_option("--PCGTolerance") .type("double") .set_default(1e-5) .help("PCG tolerance (%default)");
     parser.add_option("--PCGMaxIter") .type("int") .set_default(50) .help("max PCG iterations (%default)");
     parser.add_option("--eta0") .type("double") .set_default(1e-3) .help("PMF learning rate (%default)");
+    parser.add_option("--inferDump") .metavar("FILE") .help("if specified, dump the highest scored [inferTop] entities in H for each entity in G");
+    parser.add_option("--inferTop") .type("int") .set_default(10) .help("see above (%default)");
 
     Values& options = parser.parse_args(argc, argv);
 
@@ -78,22 +82,22 @@ int main(int argc, char *argv[]) {
     opt.eta0 = (double) options.get("eta0");
 
     /*load graph G on the left*/
-    fprintf(stderr, "Loading G ... ");
+    fprintf(stderr, "Loading G from \"%s\"\n", entityGraphG);
     Entity g(entityGraphG);
     fprintf(stderr, "Nodes in Entity 1:\t%d\n", g.n);
 
     /*load graph H on the right*/
-    fprintf(stderr, "Loading H ... ");
+    fprintf(stderr, "Loading H from \"%s\"\n", entityGraphH);
     Entity h(entityGraphH);
     fprintf(stderr, "Nodes in Entity 2:\t%d\n", h.n);
 
     /*load observed cross-graph links for training*/
-    fprintf(stderr, "Loading training links ... ");
+    fprintf(stderr, "Loading training links from \"%s\"\n", trainingLinks);
     Relation trn(trainingLinks, g, h);
     fprintf(stderr, "Edges for Training:\t%zd\n", trn.edges.size());
 
     /*load hold-out cross-graph links for testing*/
-    fprintf(stderr, "Loading test links ... ");
+    fprintf(stderr, "Loading test links from \"%s\"\n", validationLinks);
     Relation tes(validationLinks, g, h);
     fprintf(stderr, "Edges for Testing:\t%zd\n", tes.edges.size());
 
@@ -105,8 +109,48 @@ int main(int argc, char *argv[]) {
     assert(top.train(g, h, trn, tes));
 
     /*dump the predictions to file*/
-    fprintf(stderr, "Predicting ...\n");
+    fprintf(stderr, "Writing predictions to \"%s\"\n", predictions);
     Result result = top.predict(g, h, tes, predictions);
     fprintf(stderr, "MAE  = %f\n", result.mae);
     fprintf(stderr, "RMSE = %f\n", result.rmse);
+
+    const char* inferDump = (const char*) options.get("inferDump");
+
+    if ( strlen(inferDump) ) {
+        fprintf(stderr, "Writing top-ranked induced links to \"%s\"\n", inferDump);
+        unsigned inferTop = (unsigned) options.get("inferTop");
+
+        mat L = top.get_L();
+        mat R = top.get_R();
+
+        vector< tuple<int, val> > topPairs(inferTop);
+
+        string gId;
+        ofstream ofs(inferDump);
+        if ( !ofs.fail() ) {
+            mat f, scores;
+            val threshold;
+            for (unsigned i = 0; i < L.rows(); i++) {
+                f = R * L.row(i).transpose();
+
+                scores = f;
+                nth_element(scores.data(), scores.data()+inferTop, scores.data()+scores.size(), greater<val>());
+                threshold = scores(inferTop);
+
+                unsigned k = 0;
+                for (unsigned j = 0; j < R.rows(); j++) {
+                    if ( f(j) > threshold )
+                        topPairs[k++] = tuple<int, val> (j, f(j));
+                    if ( k == inferTop ) break;
+                }
+
+                sort(topPairs.begin(), topPairs.begin()+k, myComparator); 
+
+                gId = g.id_of.at(i);
+                for (unsigned j = 0; j < k; j++)
+                    ofs << gId << " " << h.id_of.at(get<0>(topPairs[j])) << " " << get<1>(topPairs[j]) << endl;
+            }
+            ofs.close();
+        }
+    }
 }

@@ -28,6 +28,8 @@ public:
     Top(const Config &opt);
     bool train(const Entity& e1, const Entity& e2, const Relation& trn, const Relation& tes);
     Result predict(const Entity& e1, const Entity& e2, const Relation& r, const char* output);
+    mat get_L() { return L; }
+    mat get_R() { return R; }
 private:
     Config opt;
     mat inv_exp_lambda; /*inv exp of G's nonzero eigenvalues*/
