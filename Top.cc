@@ -1,6 +1,6 @@
 #include "Top.hh"
 
-Top::Top(const Option& _opt) { this->opt = _opt; }
+Top::Top(const Config& _opt) { this->opt = _opt; }
 
 sp_mat Top::normalized_graph(const sp_mat& A) {
     mat degree = A*mat::Ones(A.rows(),1);
@@ -216,17 +216,20 @@ void Top::initialize(const Entity& e1, const Entity& e2, const Relation& trn) {
      * Though normalized, the largeset eigenvalue may not be exactly 1,
      * as RedSVD is an approximate SVD solver based on column sampling 
      */
-    fprintf(stderr, "Approximating the eigensystem ... ");
-    RedSVD::RedSVD<sp_mat> svd_g(normalized_graph(e1.A), this->opt.k_g);
-    RedSVD::RedSVD<sp_mat> svd_h(normalized_graph(e2.A), this->opt.k_h);
-    fprintf(stderr, "Done.\n");
 
-    this->U = svd_g.matrixU(); 
-    this->V = svd_h.matrixU();
-    this->inv_exp_lambda = (this->opt.decay * svd_g.singularValues()).array().exp().cwiseInverse();
-    this->inv_exp_mu = (this->opt.decay * svd_h.singularValues()).array().exp().cwiseInverse();
-    this->inv_exp_lambda.array() -= 1; // XXX: Trick
-    this->inv_exp_mu.array() -= 1;
+    if (opt.alg == "top") {
+        fprintf(stderr, "Approximating the eigensystem ... ");
+        RedSVD::RedSVD<sp_mat> svd_g(normalized_graph(e1.A), this->opt.k_g);
+        RedSVD::RedSVD<sp_mat> svd_h(normalized_graph(e2.A), this->opt.k_h);
+        fprintf(stderr, "Done.\n");
+
+        this->U = svd_g.matrixU(); 
+        this->V = svd_h.matrixU();
+        this->inv_exp_lambda = (this->opt.decay * svd_g.singularValues()).array().exp().cwiseInverse();
+        this->inv_exp_mu = (this->opt.decay * svd_h.singularValues()).array().exp().cwiseInverse();
+        this->inv_exp_lambda.array() -= 1; // XXX: Trick
+        this->inv_exp_mu.array() -= 1;
+    }
 
     unsigned m = e1.n;
     unsigned n = e2.n;
@@ -253,21 +256,18 @@ void Top::initialize(const Entity& e1, const Entity& e2, const Relation& trn) {
 
 bool Top::train(const Entity& e1, const Entity& e2, const Relation& trn, const Relation& tes) {
     initialize(e1, e2, trn);
-    val obj_new = 0, obj_old;
-    switch (opt.alg) {
-        case 1: obj_old = objective(L, R, trn);
-                break;
-        case 2: obj_old = objective_PMF(L, R, trn);
-                break;
-        default: fprintf(stderr, "invalid algorithm.\n"); exit(1);
-    }
+    val obj_new = 0, obj_old = 0;
+
+    if (opt.alg == "top") obj_old = objective(L, R, trn);
+    if (opt.alg == "pmf") obj_old = objective_PMF(L, R, trn);
+
     mat nabla_L, nabla_R, delta_L, delta_R;
     val t, conv;
     unsigned iter = 0;
     std::clock_t start;
     do {
         start = std::clock();
-        if (opt.alg == 1) { /*Top*/
+        if (opt.alg == "top") { /*Top*/
             /*Update L*/ {
                 /*compute the gradient*/
                 nabla_L = gradient_L(L, R, trn);
@@ -290,7 +290,7 @@ bool Top::train(const Entity& e1, const Entity& e2, const Relation& trn, const R
             }
             obj_new = objective(L, R, trn);
         }
-        if (opt.alg == 2) { /*Probabilistic Matrix Factorization*/
+        if (opt.alg == "pmf") { /*Probabilistic Matrix Factorization*/
             /*Update L*/ {
                 nabla_L = 2 * opt.C * (*get_loss_1st(L, R, trn)) * R + L;
                 for (t = opt.eta0; objective_PMF(L - t*nabla_L, R, trn) >

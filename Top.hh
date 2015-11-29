@@ -4,8 +4,9 @@
 #include "problem.hh"
 #include "RedSVD.hh"
 #include <ctime>
+#include <string>
 
-class Option {
+class Config {
 public:
     unsigned k_f;
     unsigned k_g;
@@ -18,17 +19,17 @@ public:
     val pcgTol;
     unsigned pcgIter;
     val eta0;
-    unsigned alg;
+    std::string alg;
 };
 
 class Top
 {
 public:
-    Top(const Option &opt);
+    Top(const Config &opt);
     bool train(const Entity& e1, const Entity& e2, const Relation& trn, const Relation& tes);
     Result predict(const Entity& e1, const Entity& e2, const Relation& r, const char* output);
 private:
-    Option opt;
+    Config opt;
     mat inv_exp_lambda; /*inv exp of G's nonzero eigenvalues*/
     mat inv_exp_mu;     /*inv exp of H's nonzero eigenvalues*/
     mat U;

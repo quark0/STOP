@@ -29,17 +29,19 @@ if __name__ == '__main__':
             if q not in relavenceLists:
                 relavenceLists[q] = []
             relavenceLists[q].append(pair[1])
-    aps = []
-    for q in relavenceLists:
-        lhat = predicted[q]
-        ltruth = relavenceLists[q]
-        correct = 0.0
-        sum_precision = 0.0
-        for pos in range(len(lhat)):
-            if lhat[pos] in ltruth:
-                correct = correct + 1
-                sum_precision = sum_precision + correct/(pos+1)
-        ap = sum_precision/len(ltruth)
-        aps.append(ap)
-        print "Q:", q, '\tAP:', ap
-    print "MAP =", sum(aps)/len(aps)
+
+    for top in [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]:
+        aps = []
+        for q in relavenceLists:
+            lhat = predicted[q]
+            ltruth = relavenceLists[q]
+            correct = 0.0
+            sum_precision = 0.0
+            for pos in range(min(top, len(lhat))):
+                if lhat[pos] in ltruth:
+                    correct = correct + 1
+                    sum_precision = sum_precision + correct/(pos+1)
+            ap = sum_precision/len(ltruth)
+            aps.append(ap)
+            #print "Q:", q, '\tAP:', ap
+        print "MAP@%2d = %f" % (top, sum(aps)/len(aps))

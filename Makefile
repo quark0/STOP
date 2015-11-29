@@ -7,15 +7,15 @@ CFLAGS += -Wall
 CFLAGS += -O3 
 CFLAGS += -fopenmp
 
-all: train
+all: top
 
 $(ALG).o: $(ALG).cc
 	$(CC) $(CFLAGS) -c $(ALG).cc
-main.o: main.cc
+main.o: main.cc OptionParser.cpp
 	$(CC) $(CFLAGS) -c main.cc
 problem.o: problem.cc
 	$(CC) $(CFLAGS) -c problem.cc
-train: main.o problem.o $(ALG).o
-	$(CC) $(CFLAGS) main.o problem.o $(ALG).o -o train -lboost_system
+top: main.o problem.o $(ALG).o OptionParser.o
+	$(CC) $(CFLAGS) main.o problem.o $(ALG).o OptionParser.o -o top
 clean:
 	rm -f *.o
