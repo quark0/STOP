@@ -78,15 +78,15 @@ int main(int argc, char *argv[]) {
     parser.add_option("-q", "--dimH") .type("int") .set_default(100) .help("inner dimension of H (%default)");
     parser.add_option("-C", "--C") .type("double") .set_default(1.0) .help("C*loss_func(F) + regularization(F) (%default)\n");
 
-    char const* const algs[] = { "top", "pmf" };
-    parser.add_option("--algorithm") .metavar("{top, pmf}") .choices(&algs[0], &algs[2]) .set_default("top") .help("algorithm (%default)");
+    char const* const algs[] = { "top", "pmf", "grmf" };
+    parser.add_option("--algorithm") .metavar("{top, pmf, grmf}") .choices(&algs[0], &algs[3]) .set_default("top") .help("algorithm (%default)");
     parser.add_option("--convergence") .type("double") .set_default(1e-3) .help("desired convergence rate (%default)");
     parser.add_option("--decay") .type("double") .set_default(1.0) .help("decay factor for infinite ramdom walk (%default)");
     parser.add_option("--alpha") .type("double") .set_default(0.5) .help("backtracking parameter: \\alpha (%default)");
     parser.add_option("--beta") .type("double") .set_default(0.5) .help("backtracking parameter: \\beta (%default)");
     parser.add_option("--PCGTolerance") .type("double") .set_default(1e-5) .help("PCG tolerance (%default)");
     parser.add_option("--PCGMaxIter") .type("int") .set_default(50) .help("max PCG iterations (%default)");
-    parser.add_option("--eta0") .type("double") .set_default(1e-3) .help("PMF learning rate (%default)");
+    parser.add_option("--eta0") .type("double") .set_default(1e-3) .help("PMF/GRMF learning rate (%default)");
     parser.add_option("--maxThreads") .type("int") .set_default(4) .help("max number of training threads (%default)");
     parser.add_option("--inferDump") .metavar("FILE") .help("when specified, dump the induced top [inferTop] entities in H for each entity in G");
     parser.add_option("--inferTop") .type("int") .set_default(10) .help("see above (%default)");
@@ -134,6 +134,7 @@ int main(int argc, char *argv[]) {
     INFO_1("V <-- ", validationLinks)
     Relation val(validationLinks, g, h);
 
+    /*set the CPU threads for training*/
     unsigned maxThreads = (unsigned) options.get("maxThreads"); 
     unsigned defaultThreads = Eigen::nbThreads();
     Eigen::setNbThreads(maxThreads < defaultThreads ? maxThreads : defaultThreads);

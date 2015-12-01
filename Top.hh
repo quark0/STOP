@@ -32,6 +32,8 @@ public:
     mat get_R() { return R; }
 private:
     Config opt;
+    mat lambda;
+    mat mu;
     mat inv_exp_lambda; /*inv exp of G's nonzero eigenvalues*/
     mat inv_exp_mu;     /*inv exp of H's nonzero eigenvalues*/
     mat U;
@@ -54,6 +56,10 @@ private:
      *objective for probabilistic matrix factorization
      */
     val objective_PMF(const mat& L, const mat& R, const Relation& r);
+    /*
+     *objective for graph regularized matrix factorization
+     */
+    val objective_GRMF(const mat& L, const mat& R, const Relation& r);
     /*
      * 1st and 2nd order derivatives for the loss term
      */

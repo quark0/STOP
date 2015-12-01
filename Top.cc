@@ -7,7 +7,7 @@ sp_mat Top::normalized_graph(const sp_mat& A) {
     /*in case of zero-degree vertices*/
     for (unsigned i = 0; i < degree.rows(); i++)
         if (degree(i,0) == 0)
-             degree.coeffRef(i,0) = 1;
+            degree.coeffRef(i,0) = 1;
     mat inv_degree = degree.cwiseSqrt().cwiseInverse();
     return inv_degree.asDiagonal()*A*inv_degree.asDiagonal();
 }
@@ -36,8 +36,21 @@ val Top::objective_PMF(const mat& L, const mat& R, const Relation& r) {
     return opt.C * sq_err + 0.5 * (L.squaredNorm() + R.squaredNorm());
 }
 
+val Top::objective_GRMF(const mat& L, const mat& R, const Relation& r) {
+    val sq_err = 0, s;
+    for (auto it = r.edges.cbegin(); it != r.edges.cend(); ++it) {
+        s = L.row(it->row()).dot(R.row(it->col())) - it->value();
+        sq_err += s*s;
+    }
+    mat LtU = L.transpose() * U;
+    mat RtV = R.transpose() * V;
+    return opt.C * sq_err + 0.5 * (
+            L.squaredNorm() - (LtU * this->lambda.asDiagonal() * LtU.transpose()).trace() +
+            R.squaredNorm() - (RtV * this->mu.asDiagonal() * RtV.transpose()).trace());
+}
+
 sp_mat* Top::get_loss_1st(const mat& L, const mat& R, const Relation& r) {
-    #pragma omp parallel for
+#pragma omp parallel for
     for (unsigned k = 0; k < loss_1st->outerSize(); ++k) {
         for (sp_mat::InnerIterator it(*loss_1st, k); it; ++it)
             it.valueRef() = L.row(it.row()).dot(R.row(it.col()));
@@ -47,7 +60,7 @@ sp_mat* Top::get_loss_1st(const mat& L, const mat& R, const Relation& r) {
 }
 
 sp_mat* Top::get_loss_2nd(const mat& L, const mat& R, const Relation& r) {
-    #pragma omp parallel for
+#pragma omp parallel for
     for (unsigned k = 0; k < loss_2nd->outerSize(); ++k) {
         for (sp_mat::InnerIterator it(*loss_2nd, k); it; ++it)
             it.valueRef() = L.row(it.row()).dot(R.row(it.col()));
@@ -216,8 +229,7 @@ void Top::initialize(const Entity& e1, const Entity& e2, const Relation& trn) {
      * Though normalized, the largeset eigenvalue may not be exactly 1,
      * as RedSVD is an approximate SVD solver based on column sampling 
      */
-
-    if (opt.alg == "top") {
+    if (opt.alg == "top" || opt.alg == "grmf") {
         fprintf(stderr, "Approximating the eigensystem ... ");
         RedSVD::RedSVD<sp_mat> svd_g(normalized_graph(e1.A), this->opt.k_g);
         RedSVD::RedSVD<sp_mat> svd_h(normalized_graph(e2.A), this->opt.k_h);
@@ -225,8 +237,11 @@ void Top::initialize(const Entity& e1, const Entity& e2, const Relation& trn) {
 
         this->U = svd_g.matrixU(); 
         this->V = svd_h.matrixU();
-        this->inv_exp_lambda = (this->opt.decay * svd_g.singularValues()).array().exp().cwiseInverse();
-        this->inv_exp_mu = (this->opt.decay * svd_h.singularValues()).array().exp().cwiseInverse();
+
+        this->lambda = svd_g.singularValues();
+        this->mu = svd_h.singularValues();
+        this->inv_exp_lambda = (this->opt.decay * this->lambda).array().exp().cwiseInverse();
+        this->inv_exp_mu = (this->opt.decay * this->mu).array().exp().cwiseInverse();
         this->inv_exp_lambda.array() -= 1; // XXX: Trick
         this->inv_exp_mu.array() -= 1;
     }
@@ -260,11 +275,14 @@ bool Top::train(const Entity& e1, const Entity& e2, const Relation& trn, const R
 
     if (opt.alg == "top") obj_old = objective(L, R, trn);
     if (opt.alg == "pmf") obj_old = objective_PMF(L, R, trn);
+    if (opt.alg == "grmf") obj_old = objective_GRMF(L, R, trn);
 
     mat nabla_L, nabla_R, delta_L, delta_R;
     val t, conv;
     unsigned iter = 0;
     std::clock_t start;
+    printf("%-5s %-12s %-10s %-6s %-15s %-15s\n", "ITER", "OBJ", "CONV", "SECS", "TRN.[RMSE,MAE]", "VAL.[RMSE,MAE]");
+
     do {
         start = std::clock();
         if (opt.alg == "top") { /*Top*/
@@ -305,11 +323,28 @@ bool Top::train(const Entity& e1, const Entity& e2, const Relation& trn, const R
             }
             obj_new = objective_PMF(L, R, trn);
         }
+        if (opt.alg == "grmf") { /*Graph Regularized Matrix Factorization*/
+            /*Update L*/ {
+                nabla_L = 2 * opt.C * (*get_loss_1st(L, R, trn)) * R
+                    + L - U * this->lambda.asDiagonal() * (U.transpose() * L);
+                for (t = opt.eta0; objective_GRMF(L - t*nabla_L, R, trn) >
+                        obj_old - opt.alpha*t*nabla_L.squaredNorm(); t *= opt.beta);
+                L -= t*nabla_L;
+            }
+            /*Update R*/ {
+                nabla_R = 2 * opt.C * (*get_loss_1st(L, R, trn)).transpose() * L
+                    + R - V * this->mu.asDiagonal() * (V.transpose() * R);
+                for (t = opt.eta0; objective_GRMF(L, R - t*nabla_R, trn) >
+                        obj_old - opt.alpha*t*nabla_R.squaredNorm(); t *= opt.beta);
+                R -= t*nabla_R;
+            }
+            obj_new = objective_GRMF(L, R, trn);
+        }
         /*info disp and workflow control*/
         conv = (obj_old - obj_new) / obj_old;
         Result trn_res = validate(trn);
         Result tes_res = validate(tes);
-        printf("it %2d, obj %.5e, conv %.3e, et %.3f, trn.[RMSE, MAE] [%.4f, %.4f], tes.[RMSE, MAE] [%.4f, %.4f]\n" ,
+        printf("%-5d %-12.5e %-10.3e %-6.3f %-7.4f %-7.4f %-7.4f %-7.4f\n",
                 ++iter, obj_new, conv, (std::clock() - start) / (double) CLOCKS_PER_SEC, trn_res.rmse, trn_res.mae, tes_res.rmse, tes_res.mae);
         obj_old = obj_new;
     } while (conv > opt.tol);
