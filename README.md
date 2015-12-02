@@ -43,7 +43,7 @@ The dataset is located at `data/bilingual`,
 where `cn.graph.txt` is a 50-NN similarity graph of Chinese word induced from an external corpus in via word embeddings. Similarly, `en.graph.txt` is the graph for English words.
 
 With info provided in the two monolingual graphs,
-our goal is to correctly rank the cross-language word translations in `validationLinks.txt` based on a set of seed translations in `trainingLinks.txt` obtained from a Chinese-English dictionary.
+our goal is to correctly rank the bilingual word pairs in `validationLinks.txt` based on a set of seed translations in `trainingLinks.txt` obtained from a Chinese-English dictionary.
   
 The code can be compiled with `make -j8` via g++
 
@@ -54,13 +54,13 @@ Training and predicting
 -H data/bilingual/en.graph.txt \
 -T data/bilingual/dict.trn.txt \
 -V data/bilingual/dict.val.txt \
--O out \
+-O output \
 -k 100 -p 500 -q 500 -C 5 --decay=5 --maxThreads=2 -i --numInfer=10
 ```
 
 Evaluating on the validation set with Mean Average Prevision (MAP) @1-10
 ```
-python eval.py data/bilingual/dict.val.txt out/prediction
+python eval.py data/bilingual/dict.val.txt output/prediction
 ```
 
 ###Evaluation
