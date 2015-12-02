@@ -230,7 +230,7 @@ void Top::initialize(const Entity& e1, const Entity& e2, const Relation& trn) {
      * as RedSVD is an approximate SVD solver based on column sampling 
      */
     if (opt.alg == "top" || opt.alg == "grmf") {
-        fprintf(stderr, "Approximating the eigensystem ... ");
+        fprintf(stderr, "Randomized SVD ... ");
         RedSVD::RedSVD<sp_mat> svd_g(normalized_graph(e1.A), this->opt.k_g);
         RedSVD::RedSVD<sp_mat> svd_h(normalized_graph(e2.A), this->opt.k_h);
         fprintf(stderr, "Done.\n");
@@ -327,16 +327,22 @@ bool Top::train(const Entity& e1, const Entity& e2, const Relation& trn, const R
             /*Update L*/ {
                 nabla_L = 2 * opt.C * (*get_loss_1st(L, R, trn)) * R
                     + L - U * this->lambda.asDiagonal() * (U.transpose() * L);
-                for (t = opt.eta0; objective_GRMF(L - t*nabla_L, R, trn) >
-                        obj_old - opt.alpha*t*nabla_L.squaredNorm(); t *= opt.beta);
-                L -= t*nabla_L;
+                /*
+                 *for (t = opt.eta0; objective_GRMF(L - t*nabla_L, R, trn) >
+                 *        obj_old - opt.alpha*t*nabla_L.squaredNorm(); t *= opt.beta);
+                 *L -= t*nabla_L;
+                 */
+                L -= opt.eta0 * nabla_L;
             }
             /*Update R*/ {
                 nabla_R = 2 * opt.C * (*get_loss_1st(L, R, trn)).transpose() * L
                     + R - V * this->mu.asDiagonal() * (V.transpose() * R);
-                for (t = opt.eta0; objective_GRMF(L, R - t*nabla_R, trn) >
-                        obj_old - opt.alpha*t*nabla_R.squaredNorm(); t *= opt.beta);
-                R -= t*nabla_R;
+                /*
+                 *for (t = opt.eta0; objective_GRMF(L, R - t*nabla_R, trn) >
+                 *        obj_old - opt.alpha*t*nabla_R.squaredNorm(); t *= opt.beta);
+                 *R -= t*nabla_R;
+                 */
+                R -= opt.eta0 * nabla_R;
             }
             obj_new = objective_GRMF(L, R, trn);
         }
@@ -344,7 +350,7 @@ bool Top::train(const Entity& e1, const Entity& e2, const Relation& trn, const R
         conv = (obj_old - obj_new) / obj_old;
         Result trn_res = validate(trn);
         Result tes_res = validate(tes);
-        printf("%-5d %-12.5e %-10.3e %-6.3f %-7.4f %-7.4f %-7.4f %-7.4f\n",
+        printf("%-5d %-12.5e %-10.3e %-6.1f %-7.4f %-7.4f %-7.4f %-7.4f\n",
                 ++iter, obj_new, conv, (std::clock() - start) / (double) CLOCKS_PER_SEC, trn_res.rmse, trn_res.mae, tes_res.rmse, tes_res.mae);
         obj_old = obj_new;
     } while (conv > opt.tol);

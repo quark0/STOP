@@ -2,6 +2,9 @@ using namespace std;
 
 #include <assert.h>
 #include <iomanip>
+#include <sys/stat.h>
+#include <sys/types.h>
+
 #include "Top.hh"
 #include "OptionParser.h"
 
@@ -17,10 +20,10 @@ bool tuple_comparator(const tuple<int, val>& l, const tuple<int, val>& r) {
     return get<1>(l) > get<1>(r);
 }
 
-void dump_inference(const char* dump_file, unsigned inferTop, Top* top, const Entity& g, const Entity& h) {
+void dump_inference(const char* dump_file, unsigned numInfer, Top* top, const Entity& g, const Entity& h) {
     mat L = top -> get_L();
     mat R = top -> get_R();
-    vector< tuple<int, val> > top_pairs(inferTop);
+    vector< tuple<int, val> > top_pairs(numInfer);
 
     string gid;
     ofstream ofs(dump_file);
@@ -31,14 +34,14 @@ void dump_inference(const char* dump_file, unsigned inferTop, Top* top, const En
             f = R * L.row(i).transpose();
             // find cutting-point for the top-ranked components in f
             scores = f;
-            nth_element(scores.data(), scores.data()+inferTop, scores.data()+scores.size(), greater<val>());
-            threshold = scores(inferTop);
+            nth_element(scores.data(), scores.data()+numInfer, scores.data()+scores.size(), greater<val>());
+            threshold = scores(numInfer);
             // use tuples to track entity indices in H
             unsigned k = 0;
             for (unsigned j = 0; j < R.rows(); j++) {
                 if ( f(j) > threshold )
                     top_pairs[k++] = tuple<int, val> (j, f(j));
-                if ( k == inferTop ) break;
+                if ( k == numInfer ) break;
             }
             sort(top_pairs.begin(), top_pairs.begin()+k, tuple_comparator); 
             gid = g.id_of.at(i);
@@ -47,6 +50,14 @@ void dump_inference(const char* dump_file, unsigned inferTop, Top* top, const En
         }
         ofs.close();
     }
+}
+
+const char *get_full_path(const char* dir, const char* file_name) {
+    char *p = new char[256];
+    strcpy(p, dir);
+    strcat(p, "/");
+    strcat(p, file_name);
+    return p;
 }
 
 int main(int argc, char *argv[]) {
@@ -67,11 +78,11 @@ int main(int argc, char *argv[]) {
     /_/ /          / / /____\\/ /    / / /           \n\
     \\_\\/           \\/_________/     \\/_/            ");
 
-    parser.add_option("-G", "--entityGraphG") .metavar("FILE") .help("entity graph G on the left");
-    parser.add_option("-H", "--entityGraphH") .metavar("FILE") .help("entity graph H on the right");
-    parser.add_option("-T", "--trainingLinks") .metavar("FILE") .help("cross-graph links for training");
-    parser.add_option("-V", "--validationLinks") .metavar("FILE") .help("cross-graph links for validation");
-    parser.add_option("-O", "--predictions") .metavar("FILE") .help("where to store predictions\n");
+    parser.add_option("-G", "--graphG") .metavar("FILE") .help("entity graph G on the left");
+    parser.add_option("-H", "--graphH") .metavar("FILE") .help("entity graph H on the right");
+    parser.add_option("-T", "--trainLinks") .metavar("FILE") .help("cross-graph links for training");
+    parser.add_option("-V", "--validLinks") .metavar("FILE") .help("cross-graph links for validation");
+    parser.add_option("-O", "--outDir") .metavar("FILE") .help("output directory\n");
     
     parser.add_option("-k", "--dimF") .type("int") .set_default(50) .help("inner dimension of F (%default)");
     parser.add_option("-p", "--dimG") .type("int") .set_default(100) .help("inner dimension of G (%default)");
@@ -87,22 +98,34 @@ int main(int argc, char *argv[]) {
     parser.add_option("--PCGTolerance") .type("double") .set_default(1e-5) .help("PCG tolerance (%default)");
     parser.add_option("--PCGMaxIter") .type("int") .set_default(50) .help("max PCG iterations (%default)");
     parser.add_option("--eta0") .type("double") .set_default(1e-3) .help("PMF/GRMF learning rate (%default)");
-    parser.add_option("--maxThreads") .type("int") .set_default(4) .help("max number of training threads (%default)");
-    parser.add_option("--inferDump") .metavar("FILE") .help("when specified, dump the induced top [inferTop] entities in H for each entity in G");
-    parser.add_option("--inferTop") .type("int") .set_default(10) .help("see above (%default)");
+    parser.add_option("--maxThreads") .type("int") .set_default(4) .help("max number of training threads (%default)\n");
+
+    parser.add_option("-i", "--doInfer") .action("store_true") .help("dump top [numInfer] induced cross-graph links associated with each entity in G");
+    parser.add_option("--numInfer") .type("int") .set_default(10) .help("see above (%default)");
 
     Values& options = parser.parse_args(argc, argv);
 
-    const char* entityGraphG = (const char*) options.get("entityGraphG");
-    const char* entityGraphH = (const char*) options.get("entityGraphH");
-    const char* trainingLinks = (const char*) options.get("trainingLinks");
-    const char* validationLinks = (const char*) options.get("validationLinks");
-    const char* predictions = (const char*) options.get("predictions");
+    const char* graphG = (const char*) options.get("graphG");
+    const char* graphH = (const char*) options.get("graphH");
+    const char* trainLinks = (const char*) options.get("trainLinks");
+    const char* validLinks = (const char*) options.get("validLinks");
+    const char* outDir = (const char*) options.get("outDir");
 
-    if ( !(strlen(entityGraphG) && strlen(entityGraphH) && strlen(trainingLinks) && strlen(validationLinks) &&  strlen(predictions)) ) {
+    /*ensure all required file paths are specified*/
+    if ( !(strlen(graphG) && strlen(graphH) && strlen(trainLinks) && strlen(validLinks) &&  strlen(outDir)) ) {
         parser.print_help();
         exit(1);
     }
+
+    int stat = mkdir(outDir, 0777);
+    if (stat != 0) {
+        cerr << "Failed to create the output directory (does the dir already exist?)" << endl;
+        exit(1);
+    }
+
+    const char* outPrediction = get_full_path(outDir, "prediction");
+    const char* outInference = get_full_path(outDir, "inference");
+    const char* outConfig = get_full_path(outDir, "config");
 
     Config opt;
     opt.k_f = (unsigned) options.get("dimF");
@@ -119,25 +142,26 @@ int main(int argc, char *argv[]) {
     opt.eta0 = (double) options.get("eta0");
 
     /*load graph G on the left*/
-    INFO_1("G <-- ", entityGraphG) 
-    Entity g(entityGraphG);
+    INFO_1("G <-- ", graphG) 
+    Entity g(graphG);
 
     /*load graph H on the right*/
-    INFO_1("H <-- ", entityGraphH) 
-    Entity h(entityGraphH);
+    INFO_1("H <-- ", graphH) 
+    Entity h(graphH);
 
     /*load observed cross-graph links for training*/
-    INFO_1("T <-- ", trainingLinks) 
-    Relation trn(trainingLinks, g, h);
+    INFO_1("T <-- ", trainLinks) 
+    Relation trn(trainLinks, g, h);
 
     /*load hold-out cross-graph links for testing*/
-    INFO_1("V <-- ", validationLinks)
-    Relation val(validationLinks, g, h);
+    INFO_1("V <-- ", validLinks)
+    Relation val(validLinks, g, h);
 
     /*set the CPU threads for training*/
     unsigned maxThreads = (unsigned) options.get("maxThreads"); 
     unsigned defaultThreads = Eigen::nbThreads();
-    Eigen::setNbThreads(maxThreads < defaultThreads ? maxThreads : defaultThreads);
+    unsigned ourThreads = maxThreads < defaultThreads ? maxThreads : defaultThreads;
+    Eigen::setNbThreads(ourThreads);
 
     INFO_2("Entities in G: ", g.n)
     INFO_2("Entities in H: ", h.n)
@@ -152,17 +176,38 @@ int main(int argc, char *argv[]) {
     assert(top.train(g, h, trn, val));
 
     /*dump the predictions to file*/
-    INFO_1("Predictions --> ", predictions)
-    Result result = top.predict(g, h, val, predictions);
+    INFO_1("Predictions --> ", outPrediction)
+    Result result = top.predict(g, h, val, outPrediction);
     INFO_2("MAE", result.mae)
     INFO_2("RMSE", result.rmse)
 
-    const char* inferDump = (const char*) options.get("inferDump");
-
-    if ( strlen(inferDump) ) {
-        INFO_1("Induced Links --> ", inferDump)
-        dump_inference(inferDump, (unsigned) options.get("inferTop"), &top, g, h);
+    /*dump the inferred links as necessary*/
+    if ( options.get("doInfer") ) {
+        INFO_1("Induced Links --> ", outInference)
+        dump_inference(outInference, (unsigned) options.get("numInfer"), &top, g, h);
     }
 
+    ofstream ofs(outConfig);
+    if ( !ofs.fail() ) {
+        ofs 
+            << "graphG" << " = " << graphG << endl
+            << "graphH" << " = " << graphH << endl
+            << "trainLinks" << " = " << trainLinks << endl
+            << "validLinks" << " = " << validLinks << endl
+            << "dimF" << " = " << opt.k_f << endl
+            << "dimG" << " = " << opt.k_g << endl
+            << "dimH" << " = " << opt.k_h << endl
+            << "C" << " = " << opt.C << endl
+            << "algorithm" << " = " << opt.alg << endl
+            << "convergence" << " = " << opt.tol << endl
+            << "decay" << " = " << opt.decay << endl
+            << "alpha" << " = " << opt.alpha << endl
+            << "beta" << " = " << opt.beta << endl
+            << "PCGTolerance" << " = " << opt.pcgTol << endl
+            << "PCGMaxIter" << " = " << opt.pcgIter << endl
+            << "eta0" << " = " << opt.eta0 << endl
+            << "maxThreads" << " = " << ourThreads << endl;
+        ofs.close();
+    }
     return 0;
 }
