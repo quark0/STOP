@@ -37,6 +37,7 @@ Note there is no need to convert the words into integer-valued indices.
 
 ## Example: Semi-supervised Word Translation
 
+### Description
 The dataset is located at `data/bilingual`,
 where `cn.graph.txt` is a 50-NN similarity graph of Chinese word induced from an external corpus in via word embeddings. Similarly, `en.graph.txt` is the graph for English words.
 
@@ -60,6 +61,21 @@ Evaluating on the validation set with Mean Average Prevision (MAP) @1-10
 ```
 python eval.py data/bilingual/dict.val.txt /tmp/predictions.txt
 ```
+
+###Evaluation
+Performance over the test set
+
+| Algorithm            | RMSE   | MAE    |
+|----------------------|--------|--------|
+| TOP++                | **0.0935** | **0.0215** |
+| Graph Regularized MF | 0.1010 | 0.0229 |
+| Probabilistic MF     | 0.1113 | 0.0339 |
+
+| MAP                  | @1    | @2    | @3    | @4    | @5    | @6    | @7    | @8    | @9    | @10   |
+|----------------------|-------|-------|-------|-------|-------|-------|-------|-------|-------|-------|
+| TOP++                | **0.464** | **0.561** | **0.593** | **0.610** | **0.617** | **0.622** | **0.625** | **0.628** | **0.630** | **0.631** |
+| Graph Regularized MF | 0.225 | 0.268 | 0.284 | 0.293 | 0.300 | 0.305 | 0.309 | 0.312 | 0.316 | 0.318 |
+| Probabilistic MF     | 0.127 | 0.155 | 0.166 | 0.173 | 0.179 | 0.183 | 0.186 | 0.189 | 0.191 | 0.193 |
 
 Sample output of system-induced translations with `--inferDump=FILE` and `inferTop=5` options
 ```
