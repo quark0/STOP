@@ -40,32 +40,22 @@ bool Entity::loadSparseGraph(const char* filename) {
         ifs.seekg(0);
         /*load the graph structure*/
         val v;
-        std::vector<triplet> A_triplets(l*2);
+        std::vector<triplet> A_triplets(l);
         l = 0;
         while ( getline(ifs, line) ) {
             std::stringstream ss(line);
             ss >> id_1 >> id_2 >> v;
             i = index_of[id_1];
             j = index_of[id_2];
-            /*make the graph symmetric*/
             A_triplets[l++] = triplet(i,j,v);
-            A_triplets[l++] = triplet(j,i,v);
         }
         ifs.close();
-        //add diagonal
-        /*
-         *for (int i = 0; i < n; i++) {
-         *    A_triplets.push_back(triplet(i,i,1));
-         *}
-         */
         //construct sparse adjacency matrix from triplets
         A = sp_mat(n, n);
         A.setFromTriplets(A_triplets.begin(), A_triplets.end());
-        for ( int i=0; i < A.outerSize(); ++i ) {
-            for (sp_mat::InnerIterator it(A,i); it; ++it) {
-                it.valueRef() = 1;
-            }
-        }
+        /*symmetrize the graph*/
+        sp_mat At = A.transpose();
+        A = A.cwiseMax(At);
         return true;
     }
     return false;
