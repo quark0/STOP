@@ -42,7 +42,7 @@ Note there is no need to convert the words into integer-valued indices.
 The dataset is located at `data/bilingual`,
 where `cn.graph.txt` is a 50-NN similarity graph of Chinese word induced from an external corpus in via word embeddings. Similarly, `en.graph.txt` is the graph for English words.
 
-With info provided in the two monolingual graphs,
+Given the two monolingual graphs,
 our goal is to correctly rank the bilingual word pairs in `validationLinks.txt` based on a set of seed translations in `trainingLinks.txt` obtained from a Chinese-English dictionary.
   
 The code can be compiled with `make -j8` via g++
