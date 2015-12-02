@@ -2,29 +2,30 @@
 Large-scale Transductive Learning over Product Graphs
 ```
 Options:
-  -G FILE, --entityGraphG=FILE      entity graph G on the left
-  -H FILE, --entityGraphH=FILE      entity graph H on the right
-  -T FILE, --trainingLinks=FILE     cross-graph links for training
-  -V FILE, --validationLinks=FILE   cross-graph links for validation
-  -O FILE, --predictions=FILE       where to store predictions
+  -G FILE, --graphG=FILE            entity graph G on the left
+  -H FILE, --graphH=FILE            entity graph H on the right
+  -T FILE, --trainLinks=FILE        cross-graph links for training
+  -V FILE, --validLinks=FILE        cross-graph links for validation
+  -O FILE, --outDir=FILE            output directory
 
   -k INT, --dimF=INT                inner dimension of F (50)
   -p INT, --dimG=INT                inner dimension of G (100)
   -q INT, --dimH=INT                inner dimension of H (100)
   -C DOUBLE, --C=DOUBLE             C*loss_func(F) + regularization(F) (1)
 
-  --algorithm=[top|pmf]             algorithm (top)
+  --algorithm={top, pmf, grmf}      algorithm (top)
   --convergence=DOUBLE              desired convergence rate (0.001)
   --decay=DOUBLE                    decay factor for infinite ramdom walk (1)
   --alpha=DOUBLE                    backtracking parameter: \alpha (0.5)
   --beta=DOUBLE                     backtracking parameter: \beta (0.5)
   --PCGTolerance=DOUBLE             PCG tolerance (1e-05)
   --PCGMaxIter=INT                  max PCG iterations (50)
-  --eta0=DOUBLE                     PMF learning rate (0.001)
+  --eta0=DOUBLE                     PMF/GRMF learning rate (0.001)
   --maxThreads=INT                  max number of training threads (4)
-  --inferDump=FILE                  when specified, dump the induced top
-                                    [inferTop] entities in H for each entity in G
-  --inferTop=INT                    see above (10)
+
+  -i, --doInfer                     dump top [numInfer] induced cross-graph
+                                    links associated with each entity in G
+  --numInfer=INT                    see above (10)
 ```
 
 ## Input Format
@@ -41,8 +42,8 @@ Note there is no need to convert the words into integer-valued indices.
 The dataset is located at `data/bilingual`,
 where `cn.graph.txt` is a 50-NN similarity graph of Chinese word induced from an external corpus in via word embeddings. Similarly, `en.graph.txt` is the graph for English words.
 
-With info provided in the two monolingual graphs,
-our goal is to correctly rank the cross-language word translations in `validationLinks.txt` based on a set of seed translations in `trainingLinks.txt` obtained from a Chinese-English dictionary.
+Given the two monolingual graphs,
+our goal is to correctly rank the bilingual word pairs in `validationLinks.txt` based on a set of seed translations in `trainingLinks.txt` obtained from a Chinese-English dictionary.
   
 The code can be compiled with `make -j8` via g++
 
@@ -53,13 +54,13 @@ Training and predicting
 -H data/bilingual/en.graph.txt \
 -T data/bilingual/dict.trn.txt \
 -V data/bilingual/dict.val.txt \
--O /tmp/predictions.txt \
--k 100 -p 500 -q 500 -C 5 --decay=5
+-O output \
+-k 100 -p 500 -q 500 -C 5 --decay=5 --maxThreads=2 -i --numInfer=10
 ```
 
 Evaluating on the validation set with Mean Average Prevision (MAP) @1-10
 ```
-python eval.py data/bilingual/dict.val.txt /tmp/predictions.txt
+python eval.py data/bilingual/dict.val.txt output/prediction
 ```
 
 ###Evaluation
