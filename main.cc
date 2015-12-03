@@ -10,6 +10,8 @@ using namespace std;
 
 using namespace optparse;
 
+#define EIGEN_NO_DEBUG
+
 #define COLOR_1 "\033[35m"
 #define COLOR_2 "\033[36m"
 #define RESET "\033[0m"

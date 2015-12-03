@@ -50,8 +50,8 @@ val Top::objective_GRMF(const mat& L, const mat& R, const Relation& r) {
 }
 
 sp_mat* Top::get_loss_1st(const mat& L, const mat& R, const Relation& r) {
-#pragma omp parallel for
-    for (unsigned k = 0; k < loss_1st->outerSize(); ++k) {
+    /*#pragma omp parallel for*/
+    for (int k = 0; k < loss_1st->outerSize(); ++k) {
         for (sp_mat::InnerIterator it(*loss_1st, k); it; ++it)
             it.valueRef() = L.row(it.row()).dot(R.row(it.col()));
     }
@@ -60,8 +60,8 @@ sp_mat* Top::get_loss_1st(const mat& L, const mat& R, const Relation& r) {
 }
 
 sp_mat* Top::get_loss_2nd(const mat& L, const mat& R, const Relation& r) {
-#pragma omp parallel for
-    for (unsigned k = 0; k < loss_2nd->outerSize(); ++k) {
+    /*#pragma omp parallel for*/
+    for (int k = 0; k < loss_2nd->outerSize(); ++k) {
         for (sp_mat::InnerIterator it(*loss_2nd, k); it; ++it)
             it.valueRef() = L.row(it.row()).dot(R.row(it.col()));
     }
@@ -327,22 +327,16 @@ bool Top::train(const Entity& e1, const Entity& e2, const Relation& trn, const R
             /*Update L*/ {
                 nabla_L = 2 * opt.C * (*get_loss_1st(L, R, trn)) * R
                     + L - U * this->lambda.asDiagonal() * (U.transpose() * L);
-                /*
-                 *for (t = opt.eta0; objective_GRMF(L - t*nabla_L, R, trn) >
-                 *        obj_old - opt.alpha*t*nabla_L.squaredNorm(); t *= opt.beta);
-                 *L -= t*nabla_L;
-                 */
-                L -= opt.eta0 * nabla_L;
+                for (t = opt.eta0; objective_GRMF(L - t*nabla_L, R, trn) >
+                        obj_old - opt.alpha*t*nabla_L.squaredNorm(); t *= opt.beta);
+                L -= t*nabla_L;
             }
             /*Update R*/ {
                 nabla_R = 2 * opt.C * (*get_loss_1st(L, R, trn)).transpose() * L
                     + R - V * this->mu.asDiagonal() * (V.transpose() * R);
-                /*
-                 *for (t = opt.eta0; objective_GRMF(L, R - t*nabla_R, trn) >
-                 *        obj_old - opt.alpha*t*nabla_R.squaredNorm(); t *= opt.beta);
-                 *R -= t*nabla_R;
-                 */
-                R -= opt.eta0 * nabla_R;
+                for (t = opt.eta0; objective_GRMF(L, R - t*nabla_R, trn) >
+                        obj_old - opt.alpha*t*nabla_R.squaredNorm(); t *= opt.beta);
+                R -= t*nabla_R;
             }
             obj_new = objective_GRMF(L, R, trn);
         }
