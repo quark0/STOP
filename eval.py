@@ -41,7 +41,7 @@ if __name__ == '__main__':
                 if lhat[pos] in ltruth:
                     correct = correct + 1
                     sum_precision = sum_precision + correct/(pos+1)
-            ap = sum_precision/len(ltruth)
+            ap = sum_precision/min(len(ltruth), top)
             aps.append(ap)
             #print "Q:", q, '\tAP:', ap
         print "MAP@%2d = %f" % (top, sum(aps)/len(aps))
